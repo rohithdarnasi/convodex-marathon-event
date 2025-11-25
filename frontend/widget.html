@@ -1,0 +1,224 @@
+(function () {
+    // Get configuration
+    const config = window.convodexConfig;
+    if (!config || !config.chatbotId || !config.apiUrl) {
+        console.error('ConvoDex: Missing configuration');
+        return;
+    }
+
+    // Create chat widget HTML
+    const chatHTML = `
+        <div id="convodex-widget" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;">
+            <button id="convodex-toggle" style="
+                width: 60px;
+                height: 60px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 28px;
+            ">💬</button>
+            
+            <div id="convodex-chat-window" style="
+                display: none;
+                position: absolute;
+                bottom: 80px;
+                right: 0;
+                width: 350px;
+                height: 500px;
+                background: white;
+                border-radius: 12px;
+               box-shadow: 0 5px 40px rgba(0,0,0,0.16);
+                display: flex;
+                flex-direction: column;
+            ">
+                <div style="
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 20px;
+                    border-radius: 12px 12px 0 0;
+                    font-weight: 600;
+                    font-size: 18px;
+                ">
+                    Chat with us! 🤖
+                </div>
+                
+                <div id="convodex-messages" style="
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 20px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                ">
+                    <div class="convodex-message bot-message">
+                        Hi! I'm here to help you. Ask me anything about our website!
+                    </div>
+                </div>
+                
+                <div style="
+                    padding: 15px;
+                    border-top: 1px solid #eee;
+                    display: flex;
+                    gap: 10px;
+                ">
+                    <input id="convodex-input" type="text" placeholder="Type your message..." style="
+                        flex: 1;
+                        padding: 10px 15px;
+                        border: 2px solid #e0e0e0;
+                        border-radius: 20px;
+                        font-size: 14px;
+                        outline: none;
+                    " />
+                    <button id="convodex-send" style="
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 50%;
+                        width: 40px;
+                        height: 40px;
+                        cursor: pointer;
+                        font-size: 18px;
+                    ">➤</button>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+            .convodex-message {
+                padding: 10px 15px;
+                border-radius: 12px;
+                max-width: 80%;
+                word-wrap: break-word;
+                font-size: 14px;
+                line-height: 1.4;
+            }
+            
+            .user-message {
+                background: #667eea;
+                color: white;
+                align-self: flex-end;
+                margin-left: auto;
+            }
+            
+            .bot-message {
+                background: #f0f0f0;
+                color: #333;
+                align-self: flex-start;
+            }
+            
+            #convodex-messages::-webkit-scrollbar {
+                width: 6px;
+            }
+            
+            #convodex-messages::-webkit-scrollbar-thumb {
+                background: #ccc;
+                border-radius: 3px;
+            }
+        </style>
+    `;
+
+    // Insert widget into page
+    const container = document.getElementById('convodex-chat');
+    if (container) {
+        container.innerHTML = chatHTML;
+    }
+
+    // Get elements
+    const toggleBtn = document.getElementById('convodex-toggle');
+    const chatWindow = document.getElementById('convodex-chat-window');
+    const messagesDiv = document.getElementById('convodex-messages');
+    const input = document.getElementById('convodex-input');
+    const sendBtn = document.getElementById('convodex-send');
+
+    // Toggle chat window
+    toggleBtn.addEventListener('click', () => {
+        if (chatWindow.style.display === 'none') {
+            chatWindow.style.display = 'flex';
+            input.focus();
+        } else {
+            chatWindow.style.display = 'none';
+        }
+    });
+
+    // Send message function
+    async function sendMessage() {
+        const message = input.value.trim();
+        if (!message) return;
+
+        // Add user message to chat
+        const userMsgDiv = document.createElement('div');
+        userMsgDiv.className = 'convodex-message user-message';
+        userMsgDiv.textContent = message;
+        messagesDiv.appendChild(userMsgDiv);
+
+        // Clear input
+        input.value = '';
+
+        // Scroll to bottom
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        // Show typing indicator
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'convodex-message bot-message';
+        typingDiv.textContent = 'Typing...';
+        typingDiv.id = 'typing-indicator';
+        messagesDiv.appendChild(typingDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        try {
+            // Call API
+            const response = await fetch(`${config.apiUrl}/api/chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    chatbot_id: config.chatbotId,
+                    message: message
+                })
+            });
+
+            const data = await response.json();
+
+            // Remove typing indicator
+            const typing = document.getElementById('typing-indicator');
+            if (typing) typing.remove();
+
+            // Add bot response
+            const botMsgDiv = document.createElement('div');
+            botMsgDiv.className = 'convodex-message bot-message';
+            botMsgDiv.textContent = data.response || 'Sorry, I encountered an error.';
+            messagesDiv.appendChild(botMsgDiv);
+
+            // Scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        } catch (error) {
+            console.error('ConvoDex error:', error);
+
+            // Remove typing indicator
+            const typing = document.getElementById('typing-indicator');
+            if (typing) typing.remove();
+
+            // Show error message
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'convodex-message bot-message';
+            errorDiv.textContent = 'Sorry, I encountered an error. Please try again.';
+            messagesDiv.appendChild(errorDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    }
+
+    // Event listeners
+    sendBtn.addEventListener('click', sendMessage);
+    input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+})();
